@@ -1,13 +1,11 @@
 import os
 import json
 import pdfplumber
-import anthropic
-
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+from groq import Groq
 
 SYSTEM_PROMPT = """You are an expert technical recruiter with 10+ years of experience. 
 Given a job description and a resume, evaluate the candidate strictly, objectively, and fairly.
-Always anonymize your internal evaluation — focus on skills, experience, and fit, not personal details."""
+Focus on skills, experience, and role fit only."""
 
 USER_PROMPT = """
 Job Description:
@@ -20,7 +18,7 @@ Resume Text:
 
 ---
 
-Evaluate this candidate for the role above. Return ONLY valid JSON with no extra text, markdown, or code fences:
+Evaluate this candidate. Return ONLY valid JSON with no extra text or markdown:
 
 {{
   "name": "candidate full name, or 'Unknown' if not found",
@@ -33,7 +31,6 @@ Evaluate this candidate for the role above. Return ONLY valid JSON with no extra
 """
 
 def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extract all text from a PDF file."""
     text = ""
     try:
         with pdfplumber.open(pdf_path) as pdf:
@@ -46,22 +43,21 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     return text.strip()
 
 
-def screen_resume(jd: str, resume_text: str, filename: str) -> dict:
-    """Send a single resume + JD to Claude and return structured evaluation."""
+def screen_resume(jd: str, resume_text: str, filename: str, api_key: str) -> dict:
     try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1000,
-            system=SYSTEM_PROMPT,
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
             messages=[
-                {
-                    "role": "user",
-                    "content": USER_PROMPT.format(jd=jd, resume_text=resume_text[:8000])
-                }
-            ]
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": USER_PROMPT.format(
+                    jd=jd, resume_text=resume_text[:6000]
+                )}
+            ],
+            temperature=0.3,
+            max_tokens=1000
         )
-        raw = message.content[0].text.strip()
-        # Strip markdown fences if present
+        raw = response.choices[0].message.content.strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -81,13 +77,11 @@ def screen_resume(jd: str, resume_text: str, filename: str) -> dict:
         }
 
 
-def screen_all_resumes(jd: str, pdf_files: list) -> list:
-    """Screen multiple resumes and return sorted results."""
+def screen_all_resumes(jd: str, pdf_files: list, api_key: str) -> list:
     results = []
     for pdf_path, filename in pdf_files:
         text = extract_text_from_pdf(pdf_path)
-        result = screen_resume(jd, text, filename)
+        result = screen_resume(jd, text, filename, api_key)
         results.append(result)
-    # Sort by score descending
     results.sort(key=lambda x: x.get("score", 0), reverse=True)
     return results
