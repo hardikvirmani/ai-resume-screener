@@ -47,7 +47,7 @@ def screen_resume(jd: str, resume_text: str, filename: str, api_key: str) -> dic
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": USER_PROMPT.format(
