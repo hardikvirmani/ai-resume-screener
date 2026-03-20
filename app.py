@@ -46,6 +46,7 @@ st.markdown('<div class="subtitle">Paste a job description, upload resumes, and 
 
 # ── API Key ─────────────────────────────────────────────────────────────────
 api_key = st.sidebar.text_input("Anthropic API Key", type="password",
+    value=st.secrets.get("ANTHROPIC_API_KEY", ""),
     help="Get yours at console.anthropic.com")
 if api_key:
     os.environ["ANTHROPIC_API_KEY"] = api_key
